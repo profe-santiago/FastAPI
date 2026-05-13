@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from app.products.models import Product
 from app.products.schemas import ProductCreate, ProductUpdate
 
-#cambio de prueba
+#cambio 
 
 class ProductRepository:
     def __init__(self, db: Session):
