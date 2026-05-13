@@ -2,7 +2,11 @@ alembic==1.18.4
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.1
-bcrypt==5.0.0
+# bcrypt 5.x es incompatible con passlib 1.7.4
+# passlib codifica el password en bytes antes de pasarlo a bcrypt,
+# y bcrypt 5.0+ lanza ValueError si el resultado supera 72 bytes.
+# Fijar en 4.0.1 (última versión compatible con passlib 1.7.4).
+bcrypt==4.0.1
 cffi==2.0.0
 click==8.3.1
 colorama==0.4.6

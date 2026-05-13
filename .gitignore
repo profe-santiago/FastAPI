@@ -1,6 +1,15 @@
 venv/
+myEnv/
 __pycache__/
 *.pyc
 .env
 *.sqlite3
 .DS_Store
+app/logs/*.log
+
+# Archivo SQLite temporal que genera pytest (conftest.py)
+test_temp.db
+
+# Reporte de cobertura de pytest-cov
+.coverage
+htmlcov/

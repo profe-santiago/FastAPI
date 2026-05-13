@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     app_name: str
     app_description: str
     app_version: str
+    algorithm: str
+    access_token_expire_minutes: int
 
     @property
     def database_url(self) -> str:

@@ -1,0 +1,149 @@
+# .github/workflows/tests.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Workflow de CI (Integración Continua) para el backend FastAPI
+# DSD-2303 · Sesión 50
+#
+# ¿Qué hace este archivo?
+#   Cada vez que alguien hace push o abre un Pull Request hacia main/develop,
+#   GitHub levanta una máquina virtual Ubuntu limpia y corre todos los tests
+#   automáticamente. Si alguno falla, el push se marca como ❌.
+#
+# Decisiones de diseño específicas para ESTE proyecto:
+#
+#   ✅ No declara variables de entorno en el workflow
+#      → El conftest.py ya las inyecta con os.environ.setdefault()
+#        Declarar las mismas vars aquí crearía duplicación y posibles conflictos
+#        (os.environ.setdefault no sobreescribe si ya existe en el entorno)
+#
+#   ✅ No instala PostgreSQL
+#      → Los tests usan SQLite en memoria (configurado en conftest.py)
+#        La BD de producción no participa en los tests
+#
+#   ✅ Instala pytest, httpx y PyJWT por separado
+#      → Estas dependencias NO están en requirements.txt (son solo de test)
+#        El proyecto de producción no las necesita
+#        PyJWT es necesaria para test_token_falso_devuelve_401 en test_users.py
+#
+#   ✅ Corre desde el directorio backend/
+#      → conftest.py crea test_temp.db relativo al directorio de trabajo
+#        Si pytest corre desde la raíz, no encuentra los módulos de app/
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# ── NOMBRE DEL WORKFLOW ───────────────────────────────────────────────────────
+# Lo que aparece en la pestaña Actions de GitHub y en el badge del README
+
+name: Tests CI
+
+
+# ── EVENTO: cuándo se activa este workflow ────────────────────────────────────
+# push         → al hacer git push a main o develop
+# pull_request → al abrir o actualizar un PR hacia main
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master]
+
+
+# ── JOBS: trabajo que se ejecuta ──────────────────────────────────────────────
+# Un job = un conjunto de steps que corren en la misma máquina virtual.
+# Si hubiera múltiples jobs, correrían en PARALELO por defecto.
+
+jobs:
+
+  test:                              # nombre del job (aparece en la UI de Actions)
+    runs-on: ubuntu-latest           # RUNNER: VM Ubuntu limpia, desaparece al terminar
+
+    # ── STEPS: pasos en orden ─────────────────────────────────────────────────
+    # Cada step corre en secuencia. Si uno falla, los siguientes se cancelan.
+
+    steps:
+
+      # ── STEP 1: Descargar el código del repositorio ───────────────────────
+      # actions/checkout descarga el código del commit que disparó el evento.
+      # Sin este step, la VM estaría vacía.
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+
+      # ── STEP 2: Instalar Python ───────────────────────────────────────────
+      # Configura la versión de Python que usaremos.
+      # Debe coincidir con la versión usada en desarrollo (3.12+).
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+
+      # ── STEP 3: Caché de dependencias ─────────────────────────────────────
+      # pip descarga paquetes de internet cada vez que corre el workflow.
+      # La caché guarda esos paquetes entre ejecuciones → runs más rápidos.
+      #
+      # La clave incluye el hash de requirements.txt:
+      #   → si el archivo cambia, la caché se invalida y se reconstruye
+      #   → si no cambia, se restaura la caché del run anterior
+      - name: Caché de dependencias pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+
+      # ── STEP 4: Instalar dependencias del proyecto ────────────────────────
+      # Instala todo lo que está en requirements.txt (FastAPI, SQLAlchemy, etc.)
+      # El working-directory le dice al step que se mueva a la carpeta backend/
+      # antes de ejecutar el comando.
+      #
+      # ¿Por qué backend/?
+      #   El repositorio puede tener frontend/ y backend/ en la raíz.
+      #   requirements.txt vive en backend/, no en la raíz del repo.
+      - name: Instalar dependencias del proyecto
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+
+      # ── STEP 5: Instalar dependencias de test ────────────────────────────
+      # Estas librerías NO están en requirements.txt porque son solo para tests,
+      # no para producción. Se instalan por separado para mantener la separación.
+      #
+      # pytest  → framework de tests
+      # httpx   → requerido por TestClient de FastAPI para simular HTTP
+      # PyJWT   → necesario para test_token_falso_devuelve_401 en test_users.py
+      #           (importa "jwt as pyjwt" para generar un token con firma falsa)
+      - name: Instalar dependencias de test
+        run: pip install pytest httpx PyJWT
+
+
+      # ── STEP 6: Ejecutar los tests ────────────────────────────────────────
+      # pytest -v         → verbose: muestra el nombre de cada test y su resultado
+      # pytest --tb=short → traceback corto si falla (más fácil de leer en CI)
+      #
+      # working-directory: backend
+      #   → pytest debe correr desde backend/ para que los imports de app/
+      #     funcionen correctamente (app.main, app.config, etc.)
+      #   → conftest.py crea test_temp.db en el directorio de trabajo,
+      #     si corremos desde otro lugar la ruta sería incorrecta
+      #
+      # ¿Por qué NO hay env: aquí?
+      #   → conftest.py ya declara todas las variables con os.environ.setdefault()
+      #     Añadirlas aquí también causaría que setdefault() las ignorara (ya
+      #     existen en el entorno) pero sería código duplicado sin valor añadido.
+      #     Mantener las vars en un solo lugar (conftest.py) es más fácil de mantener.
+      - name: Ejecutar tests con pytest
+        working-directory: backend
+        run: pytest -v --tb=short
+
+
+      # ── STEP 7 (opcional): Limpiar el archivo SQLite de test ─────────────
+      # conftest.py crea test_temp.db en disco (no en memoria pura).
+      # En CI esto no importa porque la VM se destruye al terminar,
+      # pero es buena práctica dejarlo limpio.
+      # El "|| true" evita que el step falle si el archivo no existe.
+      - name: Limpiar BD temporal de test
+        working-directory: backend
+        run: rm -f test_temp.db || true

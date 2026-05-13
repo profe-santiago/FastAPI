@@ -1,0 +1,11 @@
+# Ignorar entorno virtual y caché
+myEnv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.sqlite3
+.DS_Store
+.pytest_cache/
+logs/

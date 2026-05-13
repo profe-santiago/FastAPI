@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from app.users.models import User
-from app.users.schemas import UserCreate
+from app.users.schemas import UserCreate, UserUpdate
+
 
 class UserRepository:
     def __init__(self, db: Session):
@@ -22,8 +23,19 @@ class UserRepository:
         self.db.refresh(user)
         return user
 
+    def update(self, user: User, data: UserUpdate) -> User:
+        for field, value in data.model_dump(exclude_none=True).items():
+            setattr(user, field, value)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
     def deactivate(self, user: User) -> User:
         user.is_active = False
         self.db.commit()
         self.db.refresh(user)
         return user
+
+    def delete(self, user: User) -> None:
+        self.db.delete(user)
+        self.db.commit()
