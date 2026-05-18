@@ -57,6 +57,13 @@ jobs:
   test:                              # nombre del job (aparece en la UI de Actions)
     runs-on: ubuntu-latest           # RUNNER: VM Ubuntu limpia, desaparece al terminar
 
+    # ── DEFAULT WORKING DIRECTORY ─────────────────────────────────────────────
+    # ❌ ERROR: Previously missing - each step had to specify 'working-directory: backend'
+    # ✅ FIXED: Added defaults.run.working-directory so all steps run from backend/ automatically
+    defaults:
+      run:
+        working-directory: backend
+
     # ── STEPS: pasos en orden ─────────────────────────────────────────────────
     # Cada step corre en secuencia. Si uno falla, los siguientes se cancelan.
 
@@ -85,6 +92,8 @@ jobs:
       # La clave incluye el hash de requirements.txt:
       #   → si el archivo cambia, la caché se invalida y se reconstruye
       #   → si no cambia, se restaura la caché del run anterior
+      # ❌ ERROR: Previously used 'Python-FastAPI/backend/requirements.txt' path
+      # ✅ FIXED: Changed to 'backend/requirements.txt' - correct relative path
       - name: Caché de dependencias pip
         uses: actions/cache@v4
         with:
@@ -102,8 +111,9 @@ jobs:
       # ¿Por qué backend/?
       #   El repositorio puede tener frontend/ y backend/ en la raíz.
       #   requirements.txt vive en backend/, no en la raíz del repo.
+      # ❌ ERROR: Previously had 'working-directory: backend' in this step
+      # ✅ FIXED: Removed it - now uses defaults.run.working-directory from job level
       - name: Instalar dependencias del proyecto
-        working-directory: backend
         run: pip install -r requirements.txt
 
 
@@ -123,11 +133,10 @@ jobs:
       # pytest -v         → verbose: muestra el nombre de cada test y su resultado
       # pytest --tb=short → traceback corto si falla (más fácil de leer en CI)
       #
-      # working-directory: backend
-      #   → pytest debe correr desde backend/ para que los imports de app/
+      # ❌ ERROR: Previously had 'working-directory: backend' in this step
+      # ✅ FIXED: Removed it - now uses defaults.run.working-directory from job level
+      #   → pytest ahora corre desde backend/ automáticamente para que los imports de app/
       #     funcionen correctamente (app.main, app.config, etc.)
-      #   → conftest.py crea test_temp.db en el directorio de trabajo,
-      #     si corremos desde otro lugar la ruta sería incorrecta
       #
       # ¿Por qué NO hay env: aquí?
       #   → conftest.py ya declara todas las variables con os.environ.setdefault()
@@ -135,7 +144,6 @@ jobs:
       #     existen en el entorno) pero sería código duplicado sin valor añadido.
       #     Mantener las vars en un solo lugar (conftest.py) es más fácil de mantener.
       - name: Ejecutar tests con pytest
-        working-directory: backend
         run: pytest -v --tb=short
 
 
@@ -144,6 +152,7 @@ jobs:
       # En CI esto no importa porque la VM se destruye al terminar,
       # pero es buena práctica dejarlo limpio.
       # El "|| true" evita que el step falle si el archivo no existe.
+      # ❌ ERROR: Previously had 'working-directory: backend' in this step
+      # ✅ FIXED: Removed it - now uses defaults.run.working-directory from job level
       - name: Limpiar BD temporal de test
-        working-directory: backend
         run: rm -f test_temp.db || true
