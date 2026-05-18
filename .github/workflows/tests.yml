@@ -118,13 +118,17 @@ jobs:
 
 
       # ── STEP 5: Instalar dependencias de test ────────────────────────────
-      # Estas librerías NO están en requirements.txt porque son solo para tests,
-      # no para producción. Se instalan por separado para mantener la separación.
+      # Estas librerias NO estan en requirements.txt porque son solo para tests,
+      # no para produccion. Se instalan por separado para mantener la separacion.
       #
-      # pytest  → framework de tests
-      # httpx   → requerido por TestClient de FastAPI para simular HTTP
-      # PyJWT   → necesario para test_token_falso_devuelve_401 en test_users.py
+      # pytest  - framework de tests
+      # httpx   - requerido por TestClient de FastAPI para simular HTTP
+      # PyJWT   - necesario para test_token_falso_devuelve_401 en test_users.py
       #           (importa "jwt as pyjwt" para generar un token con firma falsa)
+      #
+      # NOTA: python-multipart ya NO se instala aqui porque se agrego a
+      # requirements.txt (es una dependencia de produccion: la app usa
+      # OAuth2PasswordRequestForm que requiere python-multipart en runtime).
       - name: Instalar dependencias de test
         run: pip install pytest httpx PyJWT
 
