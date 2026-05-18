@@ -1,31 +1,31 @@
-name: CI — Backend FastAPI
+name: CI - Backend FastAPI
 
 on:
   push:
     branches: [master]
-    # ❌ ERROR: 'paths: backend/**' never matched any file — the repo root IS the backend,
-    #           so no file lives under a backend/ subfolder; the job never triggered on changes
-    # ✅ FIXED: removed paths filter so the workflow triggers on every push to master
+    # ERROR: was 'paths: backend/**' — never matched any file because the repo root
+    #        IS the backend; no file lives under a backend/ subfolder.
+    # FIXED: removed paths filter so the workflow triggers on every push to master.
   pull_request:
     branches: [master]
-    # ❌ ERROR: same as above — 'paths: backend/**' never matched, blocking PR checks
-    # ✅ FIXED: removed paths filter
+    # ERROR: same as above — 'paths: backend/**' never matched, blocking PR checks.
+    # FIXED: removed paths filter.
 
-# ❌ ERROR: 'defaults.run.working-directory: backend' caused "No such file or directory"
-#           because the runner looked for /home/runner/work/FastAPI/FastAPI/backend
-#           which doesn't exist — the repo root IS the backend, there is no backend/ subfolder
-# ✅ FIXED: removed the defaults block entirely; all run steps execute from the repo root
+# ERROR: 'defaults.run.working-directory: backend' caused "No such file or directory"
+#        because the runner looked for /home/runner/work/FastAPI/FastAPI/backend
+#        which doesn't exist — the repo root IS the backend, there is no backend/ subfolder.
+# FIXED: removed the defaults block entirely; all run steps execute from the repo root.
 
 jobs:
-  # ── Job 1: Tests ──────────────────────────────────────────────────────────
+  # -- Job 1: Tests ------------------------------------------------------------
   test:
     name: Tests
     runs-on: ubuntu-latest
 
-    # ❌ ERROR: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 was in a separate env block above
-    #           the application env block; YAML only keeps the last duplicate key,
-    #           so the flag was silently overridden and the Node.js 20 warning persisted
-    # ✅ FIXED: merged both env blocks into one so all variables are active
+    # ERROR: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 was in a separate env block above
+    #        the application env block; YAML only keeps the last duplicate key,
+    #        so the flag was silently overridden and the Node.js 20 warning persisted.
+    # FIXED: merged both env blocks into one so all variables are active.
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       SECRET_KEY: test-secret-key-for-ci-only
@@ -65,25 +65,42 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          # ❌ ERROR: was 'backend/requirements.txt' — path doesn't exist because
-          #           all files are at the repo root, not inside a backend/ subfolder
-          # ✅ FIXED: changed to 'requirements.txt' — correct path from repo root
+          # ERROR: was 'backend/requirements.txt' — path doesn't exist because
+          #        all files are at the repo root, not inside a backend/ subfolder.
+          # FIXED: changed to 'requirements.txt' — correct path from repo root.
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # ERROR: pytest and httpx were never installed — they are not in requirements.txt
+      #        (production code does not need them), so 'pytest' command was not found
+      #        or fell back to the system pytest which could be an older version.
+      # FIXED: install test dependencies explicitly before running tests.
+      - name: Install test dependencies
+        run: pip install pytest httpx PyJWT
+
       - name: Run Alembic migrations
         run: alembic upgrade head
 
+      # ERROR: bare 'pytest' resolved to the system pytest on Ubuntu (potentially old),
+      #        which could fail with USAGE_ERROR reading pytest.ini.
+      # FIXED: use 'python -m pytest' to guarantee the pip-installed pytest is used.
       - name: Run tests
-        run: pytest --tb=short -q
+        run: python -m pytest --tb=short -q
 
-  # ── Job 2: Docker Build + Push a Docker Hub ───────────────────────────────
+  # -- Job 2: Docker Build + Push ----------------------------------------------
   docker:
     name: Docker Build & Push
     runs-on: ubuntu-latest
     needs: test
+
+    # ERROR: 'secrets' context cannot be used in step 'if:' expressions at workflow
+    #        parse time — GitHub's validator rejects it with "Unrecognized named-value".
+    # FIXED: expose the username as a job-level env var and check env.X instead,
+    #        which IS available in step 'if:' conditions.
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
     steps:
       - name: Checkout
@@ -93,36 +110,42 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        # ERROR: was 'if: ${{ secrets.DOCKERHUB_USERNAME != '' }}' — secrets context
+        #        is not available in if-expressions; GitHub parser raises an error.
+        # FIXED: check env.DOCKERHUB_USERNAME (set from the secret at job level above).
+        if: env.DOCKERHUB_USERNAME != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        # ❌ ERROR: the 'uses:' keyword was split mid-word by an inline comment
-        #           ('us# comment... es: docker/build-push-action@v5'), producing
-        #           invalid YAML that broke the entire docker job
-        # ✅ FIXED: restored 'uses:' as a single unbroken keyword on its own line
+        # ERROR: the 'uses:' keyword was split mid-word by an inline comment
+        #        ('us# comment... es: docker/build-push-action@v5'), producing
+        #        invalid YAML that broke the entire docker job.
+        # FIXED: restored 'uses:' as a single unbroken keyword on its own line.
         uses: docker/build-push-action@v5
         with:
-          # ❌ ERROR: was 'context: backend' — no backend/ subfolder exists at repo root,
-          #           so Docker had no build context and the step would fail
-          # ✅ FIXED: changed to 'context: .' — uses the repo root as the build context
+          # ERROR: was 'context: backend' — no backend/ subfolder exists at repo root.
+          # FIXED: changed to 'context: .' — uses the repo root as the build context.
           context: .
-          push: ${{ secrets.DOCKERHUB_USERNAME != '' && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+          # ERROR: used 'refs/heads/main' but the branch is 'master'.
+          # FIXED: corrected to 'refs/heads/master' to match the actual branch name.
+          push: ${{ env.DOCKERHUB_USERNAME != '' && github.ref == 'refs/heads/master' && github.event_name == 'push' }}
           tags: |
             stgcontacto/fastapi-backend:latest
             stgcontacto/fastapi-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Job 3: Deploy a Railway (solo en main) ────────────────────────────────
+  # -- Job 3: Deploy to Railway ------------------------------------------------
   deploy-railway:
     name: Deploy to Railway
     runs-on: ubuntu-latest
     needs: docker
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # ERROR: used 'refs/heads/main' but the branch is 'master'.
+    # FIXED: corrected to 'refs/heads/master' to match the actual branch name.
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
 
     steps:
       - name: Checkout
@@ -132,10 +155,9 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy
-        # ❌ ERROR: had 'working-directory: Python-FastAPI/backend' — that path
-        #           doesn't exist on the runner; it was a leftover from a local folder
-        #           structure that doesn't reflect the repository layout
-        # ✅ FIXED: removed working-directory; the step runs from the repo root
+        # ERROR: had 'working-directory: Python-FastAPI/backend' — that path
+        #        doesn't exist on the runner; leftover from a local folder structure.
+        # FIXED: removed working-directory; the step runs from the repo root.
         run: railway up --service backend --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

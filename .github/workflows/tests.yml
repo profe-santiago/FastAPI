@@ -129,14 +129,16 @@ jobs:
         run: pip install pytest httpx PyJWT
 
 
-      # ── STEP 6: Diagnóstico del entorno ──────────────────────────────────
-      # Imprime la versión de Python y los paquetes instalados antes de correr
-      # pytest. Esto es útil para diagnosticar problemas de entorno en CI.
-      - name: Diagnóstico del entorno
+      # ── STEP 6: Diagnostico del entorno ──────────────────────────────────
+      # Prints Python version, pytest version, and key installed packages.
+      # Uses 'set +e' so ALL commands run even if one fails — this lets us
+      # see exactly which command exits with a non-zero code in CI logs.
+      - name: Diagnostico del entorno
         run: |
+          set +e
           python --version
-          python -m pytest --version
-          python -m pip list | grep -E "pytest|anyio|fastapi|httpx|PyJWT"
+          python -m pytest --version; echo "pytest --version exit code: $?"
+          python -m pip list 2>&1 | grep -iE "pytest|anyio|sniffio|fastapi|httpx|pyjwt" || echo "(grep found no matches)"
 
       # ── STEP 7: Ejecutar los tests ────────────────────────────────────────
       # Se usa 'python -m pytest' en lugar de 'pytest' directamente para
