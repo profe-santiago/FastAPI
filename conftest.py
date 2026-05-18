@@ -4,11 +4,25 @@
 # No necesitas importarlo — pytest lo detecta por su nombre.
 #
 # Responsabilidades:
-#   1. Inyectar variables de entorno ANTES de importar app/ (pydantic-settings
+#   1. Agregar la raíz del proyecto a sys.path para que "app/" sea importable
+#   2. Inyectar variables de entorno ANTES de importar app/ (pydantic-settings
 #      las lee al importar app.config, así que deben existir primero)
-#   2. Crear la BD SQLite de test y limpiarla entre tests
-#   3. Proveer fixtures compartidos: client, admin_token, user_token
+#   3. Crear la BD SQLite de test y limpiarla entre tests
+#   4. Proveer fixtures compartidos: client, admin_token, user_token
 # ─────────────────────────────────────────────────────────────────────────────
+
+# ── PYTHONPATH ────────────────────────────────────────────────────────────────
+# Agrega la raíz del proyecto a sys.path para que "from app.main import app"
+# funcione en cualquier entorno (CI, local, cualquier versión de pytest).
+#
+# ❌ ANTES: dependía de 'pythonpath = .' en pytest.ini, opción añadida en
+#           pytest 7.0 — causaba USAGE_ERROR (exit code 4) en CI Ubuntu cuando
+#           el runner resolvía una versión de pytest que no la soportaba.
+# ✅ AHORA: sys.path.insert() funciona con cualquier versión de pytest y no
+#           depende de ninguna opción de configuración del ini.
+import sys
+import pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 import os
 import pytest
