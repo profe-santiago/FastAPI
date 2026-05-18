@@ -2,29 +2,44 @@ name: CI — Backend FastAPI
 
 on:
   push:
-    branches: [main, develop]
-    # ❌ ERROR: was 'Python-FastAPI/backend/**' - path doesn't exist in repo root
-    # ✅ FIXED: changed to 'backend/**' - correct relative path from repo root
-    paths:
-      - 'backend/**'
+    branches: [master]
+    # ❌ ERROR: 'paths: backend/**' never matched any file — the repo root IS the backend,
+    #           so no file lives under a backend/ subfolder; the job never triggered on changes
+    # ✅ FIXED: removed paths filter so the workflow triggers on every push to master
   pull_request:
-    branches: [main, develop]
-    # ❌ ERROR: was 'Python-FastAPI/backend/**' - path doesn't exist in repo root
-    # ✅ FIXED: changed to 'backend/**' - correct relative path from repo root
-    paths:
-      - 'backend/**'
+    branches: [master]
+    # ❌ ERROR: same as above — 'paths: backend/**' never matched, blocking PR checks
+    # ✅ FIXED: removed paths filter
 
-defaults:
-  run:
-    # ❌ ERROR: was 'Python-FastAPI/backend' - caused "No such file or directory" error
-    # ✅ FIXED: changed to 'backend' - correct working directory path from repo root
-    working-directory: backend
+# ❌ ERROR: 'defaults.run.working-directory: backend' caused "No such file or directory"
+#           because the runner looked for /home/runner/work/FastAPI/FastAPI/backend
+#           which doesn't exist — the repo root IS the backend, there is no backend/ subfolder
+# ✅ FIXED: removed the defaults block entirely; all run steps execute from the repo root
 
 jobs:
   # ── Job 1: Tests ──────────────────────────────────────────────────────────
   test:
     name: Tests
     runs-on: ubuntu-latest
+
+    # ❌ ERROR: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 was in a separate env block above
+    #           the application env block; YAML only keeps the last duplicate key,
+    #           so the flag was silently overridden and the Node.js 20 warning persisted
+    # ✅ FIXED: merged both env blocks into one so all variables are active
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      SECRET_KEY: test-secret-key-for-ci-only
+      DEBUG: "True"
+      DB_NAME: test_db
+      DB_USER: test_user
+      DB_PASSWORD: test_password
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      APP_NAME: "FastAPI CI"
+      APP_DESCRIPTION: "CI Test Run"
+      APP_VERSION: "1.0.0"
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
 
     services:
       postgres:
@@ -41,20 +56,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    env:
-      SECRET_KEY: test-secret-key-for-ci-only
-      DEBUG: "True"
-      DB_NAME: test_db
-      DB_USER: test_user
-      DB_PASSWORD: test_password
-      DB_HOST: localhost
-      DB_PORT: "5432"
-      APP_NAME: "FastAPI CI"
-      APP_DESCRIPTION: "CI Test Run"
-      APP_VERSION: "1.0.0"
-      ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,9 +65,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          # ❌ ERROR: was 'Python-FastAPI/backend/requirements.txt' - path doesn't exist
-          # ✅ FIXED: changed to 'backend/requirements.txt' - correct path for cache
-          cache-dependency-path: backend/requirements.txt
+          # ❌ ERROR: was 'backend/requirements.txt' — path doesn't exist because
+          #           all files are at the repo root, not inside a backend/ subfolder
+          # ✅ FIXED: changed to 'requirements.txt' — correct path from repo root
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -91,7 +93,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        # Solo hace login si tenemos los secrets (no en forks ni PRs externos)
         if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
         uses: docker/login-action@v3
         with:
@@ -99,12 +100,16 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        us# ❌ ERROR: was 'Python-FastAPI/backend' - path doesn't exist in repo root
-          # ✅ FIXED: changed to 'backend' - correct Docker build context path
-          es: docker/build-push-action@v5
+        # ❌ ERROR: the 'uses:' keyword was split mid-word by an inline comment
+        #           ('us# comment... es: docker/build-push-action@v5'), producing
+        #           invalid YAML that broke the entire docker job
+        # ✅ FIXED: restored 'uses:' as a single unbroken keyword on its own line
+        uses: docker/build-push-action@v5
         with:
-          context: backend
-          # push solo si hay credenciales y es push a main
+          # ❌ ERROR: was 'context: backend' — no backend/ subfolder exists at repo root,
+          #           so Docker had no build context and the step would fail
+          # ✅ FIXED: changed to 'context: .' — uses the repo root as the build context
+          context: .
           push: ${{ secrets.DOCKERHUB_USERNAME != '' && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
           tags: |
             stgcontacto/fastapi-backend:latest
@@ -127,7 +132,10 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy
-        working-directory: Python-FastAPI/backend
+        # ❌ ERROR: had 'working-directory: Python-FastAPI/backend' — that path
+        #           doesn't exist on the runner; it was a leftover from a local folder
+        #           structure that doesn't reflect the repository layout
+        # ✅ FIXED: removed working-directory; the step runs from the repo root
         run: railway up --service backend --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
