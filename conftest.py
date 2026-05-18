@@ -119,14 +119,23 @@ def limpiar_bd_entre_tests():
     # Después del test: limpiar datos y overrides
     db = SessionTest()
     try:
-        # TRUNCATE equivalente en SQLite (DELETE sin WHERE + reset autoincrement)
         db.execute(text("DELETE FROM users"))
-        db.execute(text("DELETE FROM sqlite_sequence WHERE name='users'"))
         db.commit()
     except Exception:
         db.rollback()
     finally:
         db.close()
+
+    # sqlite_sequence only exists when AUTOINCREMENT is declared on a table.
+    # Run in a separate transaction so its absence never rolls back the user delete.
+    db2 = SessionTest()
+    try:
+        db2.execute(text("DELETE FROM sqlite_sequence WHERE name='users'"))
+        db2.commit()
+    except Exception:
+        db2.rollback()
+    finally:
+        db2.close()
     app.dependency_overrides.clear()
 
 
