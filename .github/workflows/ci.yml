@@ -34,19 +34,15 @@ jobs:
 
       - name: Instalar dependencias del proyecto
         run: pip install -r requirements.txt
-        working-directory: Python-FastAPI/backend
 
       - name: Instalar dependencias de test
         run: pip install pytest httpx PyJWT
-        working-directory: Python-FastAPI/backend
 
       - name: Ejecutar tests con pytest
         run: python -m pytest
-        working-directory: Python-FastAPI/backend
 
       - name: Limpiar BD temporal de test
         run: rm -f test_temp.db || true
-        working-directory: Python-FastAPI/backend
 
   # ── Job 2: Docker Build + Push a Docker Hub ───────────────────────────────
   docker:
@@ -71,7 +67,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: Python-FastAPI/backend
+          context: .
           push: true
           tags: |
             stgcontacto/fastapi-backend:latest
@@ -97,6 +93,5 @@ jobs:
 
       - name: Deploy to Railway
         run: railway up --service FastAPI --detach
-        working-directory: Python-FastAPI/backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
