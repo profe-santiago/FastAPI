@@ -1,6 +1,7 @@
 # Scaffolding: FastAPI + SQLAlchemy + JWT + PostgreSQL
 ### Arquitectura Multicapa · DSD-2303
 
+
 <!-- Badge de CI: se actualiza automáticamente con cada push -->
 <!-- ⚠️ Reemplaza TU_USUARIO y TU_REPO con tus datos de GitHub -->
 [![Tests CI](https://github.com/TU_USUARIO/TU_REPO/actions/workflows/tests.yml/badge.svg)](https://github.com/TU_USUARIO/TU_REPO/actions)
