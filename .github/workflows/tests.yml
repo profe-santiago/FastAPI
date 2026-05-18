@@ -129,9 +129,26 @@ jobs:
         run: pip install pytest httpx PyJWT
 
 
-      # ── STEP 6: Ejecutar los tests ────────────────────────────────────────
-      # pytest -v         → verbose: muestra el nombre de cada test y su resultado
-      # pytest --tb=short → traceback corto si falla (más fácil de leer en CI)
+      # ── STEP 6: Diagnóstico del entorno ──────────────────────────────────
+      # Imprime la versión de Python y los paquetes instalados antes de correr
+      # pytest. Esto es útil para diagnosticar problemas de entorno en CI.
+      - name: Diagnóstico del entorno
+        run: |
+          python --version
+          python -m pytest --version
+          python -m pip list | grep -E "pytest|anyio|fastapi|httpx|PyJWT"
+
+      # ── STEP 7: Ejecutar los tests ────────────────────────────────────────
+      # Se usa 'python -m pytest' en lugar de 'pytest' directamente para
+      # garantizar que se usa el pytest instalado por setup-python, no uno
+      # del sistema que podría ser una versión anterior incompatible con
+      # la opción 'pythonpath' de pytest.ini (añadida en pytest 7.0).
+      #
+      # ❌ ERROR: 'pytest -v --tb=short' usaba el ejecutable 'pytest' del PATH,
+      #           que en algunos runners de Ubuntu podía ser una versión antigua
+      #           del sistema que no reconoce 'pythonpath' en pytest.ini
+      #           → pytest.ini USAGE_ERROR → exit code 4
+      # ✅ FIXED: cambiado a 'python -m pytest' para forzar el pytest correcto
       #
       # ¿Por qué NO hay env: aquí?
       #   → conftest.py ya declara todas las variables con os.environ.setdefault()
@@ -139,10 +156,10 @@ jobs:
       #     existen en el entorno) pero sería código duplicado sin valor añadido.
       #     Mantener las vars en un solo lugar (conftest.py) es más fácil de mantener.
       - name: Ejecutar tests con pytest
-        run: pytest -v --tb=short
+        run: python -m pytest
 
 
-      # ── STEP 7 (opcional): Limpiar el archivo SQLite de test ─────────────
+      # ── STEP 8 (opcional): Limpiar el archivo SQLite de test ─────────────
       # conftest.py crea test_temp.db en disco (no en memoria pura).
       # En CI esto no importa porque la VM se destruye al terminar,
       # pero es buena práctica dejarlo limpio.
