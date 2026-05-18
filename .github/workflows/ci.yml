@@ -83,7 +83,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -93,14 +92,14 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: Python-FastAPI/backend
-          push: ${{ secrets.DOCKERHUB_USERNAME != '' && github.event_name == 'push' }}
+          push: ${{ github.event_name == 'push' }}
           tags: |
             stgcontacto/fastapi-backend:latest
             stgcontacto/fastapi-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Job 3: Deploy a Railway (solo en push a main/master) ──────────────────
+  # ── Job 3: Deploy a Railway ───────────────────────────────────────────────
   deploy-railway:
     name: Deploy to Railway
     runs-on: ubuntu-latest
@@ -111,8 +110,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.app/install.sh | sh
+          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
       - name: Deploy to Railway
-        uses: railway-app/railway-deploy@v1
-        with:
-          service: FastAPI
-          token: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service FastAPI --detach
+        working-directory: Python-FastAPI/backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
