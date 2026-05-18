@@ -3,16 +3,22 @@ name: CI — Backend FastAPI
 on:
   push:
     branches: [main, develop]
+    # ❌ ERROR: was 'Python-FastAPI/backend/**' - path doesn't exist in repo root
+    # ✅ FIXED: changed to 'backend/**' - correct relative path from repo root
     paths:
-      - 'Python-FastAPI/backend/**'
+      - 'backend/**'
   pull_request:
     branches: [main, develop]
+    # ❌ ERROR: was 'Python-FastAPI/backend/**' - path doesn't exist in repo root
+    # ✅ FIXED: changed to 'backend/**' - correct relative path from repo root
     paths:
-      - 'Python-FastAPI/backend/**'
+      - 'backend/**'
 
 defaults:
   run:
-    working-directory: Python-FastAPI/backend
+    # ❌ ERROR: was 'Python-FastAPI/backend' - caused "No such file or directory" error
+    # ✅ FIXED: changed to 'backend' - correct working directory path from repo root
+    working-directory: backend
 
 jobs:
   # ── Job 1: Tests ──────────────────────────────────────────────────────────
@@ -58,7 +64,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: Python-FastAPI/backend/requirements.txt
+          # ❌ ERROR: was 'Python-FastAPI/backend/requirements.txt' - path doesn't exist
+          # ✅ FIXED: changed to 'backend/requirements.txt' - correct path for cache
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -91,9 +99,11 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        us# ❌ ERROR: was 'Python-FastAPI/backend' - path doesn't exist in repo root
+          # ✅ FIXED: changed to 'backend' - correct Docker build context path
+          es: docker/build-push-action@v5
         with:
-          context: Python-FastAPI/backend
+          context: backend
           # push solo si hay credenciales y es push a main
           push: ${{ secrets.DOCKERHUB_USERNAME != '' && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
           tags: |
