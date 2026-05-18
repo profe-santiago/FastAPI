@@ -87,9 +87,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        run: |
-          curl -fsSL https://railway.app/install.sh | sh
-          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+        run: npm install -g @railway/cli
 
       - name: Deploy to Railway
         run: railway up --service FastAPI --detach
